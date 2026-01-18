@@ -11,7 +11,7 @@ const bookingSchema=z.object({
         .max(365),
     rentPerDay:z
         .number()
-        .min(0)
+        .min(1)
         .max(2000)    
 }).strict()
 const statusSchema=z.object({

@@ -51,31 +51,30 @@ router.get('/',async (req,res)=>{
             error: "invalid inputs"
         })
     }
-    if (summary === "true") {
-        try{
+    try {
+        if (summary === "true") {
             const result=await Booking.getSummary(req.user.userId)
             return res.status(200).json({
                 success: true,
                 data:{
                     userId:req.user.userId,
                     username:req.user.username,
-                    totalBookings:parseInt(result.total_bookings),
-                    totalAmountSpent:parseInt(result.total_amount)
+                    totalBookings:parseInt(result?.total_bookings || 0),
+                    totalAmountSpent:parseInt(result?.total_amount||0)
                 }
             })
-        }catch (err){
-            return res.status(404).json({
-                success: false,
-                error:"no booking for current user"
-            })
-        }
-    }else if(bookingId){
-        try{
+        }else if(bookingId){
             const result=await Booking.findById(bookingId)
+            if(req.user.userId!==result.user_id){
+                return res.status(404).json({
+                    success:false,
+                    error:"not of current user"
+                })
+            }
             return res.status(200).json({
                 success: true,
                 data:{
-                    "id":bookingId,
+                    "id":Number(bookingId),
                     "car_name":result.car_name,
                     "days":result.days,
                     "rent_per_day":result.rent_per_day,
@@ -83,17 +82,25 @@ router.get('/',async (req,res)=>{
                     "totalCost":result.days*result.rent_per_day
                 }
             })
-        }catch(err){
-            return res.status(404).json({
-                success: false,
-                error:"bookingId not found"
+        }else{
+            const result=await Booking.findByUserId(req.user.userId)
+            return res.status(200).json({
+                success: true,
+                data: result.map(b => ({
+                    id: b.id,
+                    car_name: b.car_name,
+                    days: b.days,
+                    rent_per_day: b.rent_per_day,
+                    status: b.status,
+                    totalCost: b.days * b.rent_per_day
+                }))
             })
         }
-    }else{
-        return res.status(400).json({
+    }catch (err){
+        return res.status(404).json({
             success: false,
-            error: "invalid inputs"
-        }) 
+            error:"no booking for current user"
+        })
     }
 })
 
@@ -132,8 +139,8 @@ router.put('/:bookingId',async (req,res)=>{
                         }
                     }
                 })
-            }else if(!status && carName && days && rentPerDay){
-                const result=bookingSchema.safeParse(req.body)
+            }else if(!status && (carName || days || rentPerDay)){
+                const result=bookingSchema.partial().safeParse(req.body)
                 if(!result.success){
                     return res.status(400).json({
                         success:false,
